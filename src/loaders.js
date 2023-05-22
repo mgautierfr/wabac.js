@@ -65,7 +65,7 @@ class CollectionLoader
       const allColls = await this.listAll();
 
       const promises = allColls.map((data) => this._initColl(data));
-  
+
       await Promise.all(promises);
     } catch (e) {
       console.warn(e.toString());
@@ -221,7 +221,7 @@ class CollectionLoader
 
     case "remoteprefix":
       store = new RemotePrefixArchiveDB(config.dbname, config.remotePrefix, config.headers, config.noCache);
-      break;        
+      break;
 
     case "wacz":
     case "remotezip":
@@ -292,7 +292,7 @@ class WorkerLoader extends CollectionLoader
     switch (event.data.msg_type) {
     case "addColl":
     {
-      const name = event.data.name; 
+      const name = event.data.name;
 
       const progressUpdate = (percent, error, currentSize, totalSize, fileHandle = null, extraMsg = null) => {
         client.postMessage({
@@ -319,7 +319,7 @@ class WorkerLoader extends CollectionLoader
         } else {
           res = await this.addCollection(event.data, progressUpdate);
         }
-  
+
         if (!res) {
           if (event.data.name) {
             try {
@@ -403,7 +403,7 @@ class WorkerLoader extends CollectionLoader
     for (const coll of allColls) {
 
       //const pageList = await coll.store.getAllPages();
-  
+
       msgData.push({
         "name": coll.name,
         "prefix": coll.name,
@@ -413,7 +413,7 @@ class WorkerLoader extends CollectionLoader
     }
     client.postMessage({ "msg_type": "listAll", "colls": msgData });
   }
-  
+
   async addCollection(data, progressUpdate) {
     let name = data.name;
 
@@ -432,229 +432,16 @@ class WorkerLoader extends CollectionLoader
 
     config.dbname = "db:" + name;
 
-    if (file.sourceUrl.startsWith("proxy:")) {
-      config.sourceUrl = file.sourceUrl.slice("proxy:".length);
-      config.extraConfig = data.extraConfig;
-      if (!config.extraConfig.prefix) {
-        config.extraConfig.prefix = config.sourceUrl;
-      }
-      config.topTemplateUrl = data.topTemplateUrl;
-      config.metadata = {};
-      type = data.type || config.extraConfig.type || "remotewarcproxy";
-
-      db = await this._initStore(type, config);
-
-    } else {
-      let loader = null;
-
-      if (file.newFullImport) {
-        name = randomId();
-        file.loadUrl = file.loadUrl || file.sourceUrl;
-        file.name = file.name || file.sourceUrl;
-        file.sourceUrl = "local://" + name;
-      }
-
-      type = "archive";
-
-      if (file.newFullImport && file.importCollId) {
-        const existing = await this.colldb.get("colls", file.importCollId);
-        if (!existing || existing.type !== "archive") {
-          progressUpdate(0, "Invalid Existing Collection: " + file.importCollId);
-          return;
-        }
-        config.dbname = existing.config.dbname;
-        updateExistingConfig = existing.config;
-        updateExistingConfig.decode = true;
-      }
-
-      let loadUrl = file.loadUrl || file.sourceUrl;
-
-      if (!loadUrl.match(/[\w]+:\/\//)) {
-        loadUrl = new URL(loadUrl, self.location.href).href;
-      }
-
-      config.decode = true;
-      config.onDemand = false;
-      config.loadUrl = loadUrl;
-      config.sourceUrl = file.sourceUrl;
-
-      config.sourceName = file.name || file.sourceUrl;
-
-      // parse to strip out query, keep hash/fragment (if any)
-      try {
-        if (config.sourceName.match(/https?:\/\//)) {
-          const sourceUrl = new URL(config.sourceName);
-          config.sourceName = sourceUrl.pathname + sourceUrl.hash;
-        }
-      } catch (e) {
-        // ignore, keep sourceName as is
-      }
-      config.sourceName = config.sourceName.slice(config.sourceName.lastIndexOf("/") + 1);
-
-      config.size = typeof(file.size) === "number" ? file.size : null;
-      config.extra = file.extra;
-
-      if (config.loadUrl.startsWith("file://") && !file.blob && !config.extra) {
-        if (this._fileHandles && this._fileHandles[config.sourceUrl]) {
-          config.extra = {fileHandle: this._fileHandles[config.sourceUrl]};
-        } else {
-          progressUpdate(0, "missing_local_file");
-          return;
-        }
-      }
-
-      config.extraConfig = data.extraConfig;
-      config.headers = file.headers || (config.extraConfig && config.extraConfig.headers);
-      config.noCache = file.noCache;
-
-      let sourceLoader = await createLoader({
-        url: loadUrl,
-        headers: config.headers,
-        size: file.size,
-        extra: config.extra,
-        blob: file.blob
-      });
-
-      if (file.loadEager) {
-        const {response} = await sourceLoader.doInitialFetch(false, true);
-        const arrayBuffer = new Uint8Array(await response.arrayBuffer());
-        const extra = {arrayBuffer};
-
-        //config.extra = extra;
-        file.newFullImport = true;
-
-        sourceLoader = await createLoader({
-          url: loadUrl,
-          headers: config.headers,
-          size: file.size,
-          extra,
-        });
-      }
-
-      let sourceExt = getKnownFileExtension(config.sourceName);
-
-      let { abort, response } = await sourceLoader.doInitialFetch(sourceExt === ".wacz");
-
-      if (!sourceExt) {
-        sourceExt = await detectFileType(await response.clone());
-      }
-
-      const stream = response.body;
-
-      config.onDemand = sourceLoader.canLoadOnDemand && !file.newFullImport;
-
-      if (!sourceLoader.isValid) {
-        const text = sourceLoader.length <= 1000 ? await response.text() : "";
-        progressUpdate(0, `\
-Sorry, this URL could not be loaded.
-Make sure this is a valid URL and you have access to this file.
-Status: ${response.status} ${response.statusText}
-Error Details:
-${text}`);
-        if (abort) {
-          abort.abort();
-        }
-        return false;
-      }
-
-      if (!sourceLoader.length) {
-        progressUpdate(0, `\
-Sorry, this URL could not be loaded because the size of the file is not accessible.
-Make sure this is a valid URL and you have access to this file.`);
-        if (abort) {
-          abort.abort();
-        }
-        return false;
-      }
-
-      const contentLength = sourceLoader.length;
-
-      if (sourceExt === ".wacz") {
-        if (config.onDemand) {
-          loader = new SingleWACZLoader(sourceLoader, config, name);
-          db = new MultiWACZ(config, sourceLoader, "wacz");
-          type = "wacz";
-
-        // can load on demand, but want a full import
-        } else if (sourceLoader.canLoadOnDemand && file.newFullImport) {
-          loader = new SingleWACZFullImportLoader(sourceLoader, config, name);
-          //use default db
-          db = null;
-          delete config.extra;
-
-        } else {
-          progressUpdate(0, "Sorry, can't load this WACZ file due to lack of range request support on the server");
-          if (abort) {
-            abort.abort();
-          }
-          return false;
-        }
-
-      } else if (sourceExt === ".warc" || sourceExt === ".warc.gz") {
-        if (!config.noCache && (contentLength < MAX_FULL_DOWNLOAD_SIZE || !config.onDemand)) {
-          loader = new WARCLoader(stream, abort, name);
-        } else {
-          loader = new CDXFromWARCLoader(stream, abort, name);
-          type = "remotesource";
-          db = new RemoteSourceArchiveDB(config.dbname, sourceLoader, config.noCache);
-        }
-
-      } else if (sourceExt === ".cdx" || sourceExt === ".cdxj") {
-        config.remotePrefix = data.remotePrefix || loadUrl.slice(0, loadUrl.lastIndexOf("/") + 1);
-        loader = new CDXLoader(stream, abort, name);
-        type = "remoteprefix";
-        db = new RemotePrefixArchiveDB(config.dbname, config.remotePrefix, config.headers, config.noCache);
-      
-        // } else if (sourceExt === ".wbn") {
-        //   //todo: fix
-        //   loader = new WBNLoader(await response.arrayBuffer());
-        //   config.decode = false;
-
-      } else if (sourceExt === ".har") {
-        loader = new HARLoader(await response.json());
-        config.decode = false;
-      } else if (sourceExt === ".json") {
-        db = new MultiWACZ(config, sourceLoader, "json");
-        loader = new JSONResponseMultiWACZLoader(response);
-        type = "multiwacz";
-      }
-
-      if (!loader) {
-        progressUpdate(0, `The ${config.sourceName} is not a known archive format that could be loaded.`);
-        if (abort) {
-          abort.abort();
-        }
-        return false;
-      }
-
-      if (!db) {
-        db = new ArchiveDB(config.dbname);
-      }
-      await db.initing;
-
-      try {
-        config.metadata = await loader.load(db, progressUpdate, contentLength);
-      } catch (e) {
-        if (!(e instanceof Canceled)) {
-          progressUpdate(0, `Unexpected Loading Error: ${e.toString()}`);
-          console.warn(e);
-        }
-        return false;
-      }
-
-      if (updateExistingConfig) {
-        await this.updateSize(file.importCollId, contentLength, contentLength, updateExistingConfig.decode);
-        return {config: updateExistingConfig};
-      }
-
-      if (!config.metadata.size) {
-        config.metadata.size = contentLength;
-      }
-
-      if (!config.metadata.title) {
-        config.metadata.title = config.sourceName;
-      }
+    config.sourceUrl = file.sourceUrl.slice("proxy:".length);
+    config.extraConfig = data.extraConfig;
+    if (!config.extraConfig.prefix) {
+      config.extraConfig.prefix = config.sourceUrl;
     }
+    config.topTemplateUrl = data.topTemplateUrl;
+    config.metadata = {};
+    type = data.type || config.extraConfig.type || "remotewarcproxy";
+
+    db = await this._initStore(type, config);
 
     config.ctime = new Date().getTime();
 
