@@ -1,12 +1,5 @@
 import { getReasonPhrase } from "http-status-codes";
 
-// Threshold size for switching to range requests
-export const MAX_FULL_DOWNLOAD_SIZE = 25000000;
-
-export const PAGE_STATE_NOT_FINISHED = 0x00;
-export const PAGE_STATE_NEED_REMOTE_SYNC = 0x10;
-export const PAGE_STATE_NEED_LOCAL_SYNC = 0x01;
-export const PAGE_STATE_SYNCED = 0x11;
 
 export const MAX_STREAM_CHUNK_SIZE = 65536 * 4;
 
@@ -56,7 +49,7 @@ export function tsToDate(ts) {
     ts.substring(6, 8) + "T" +
     ts.substring(8, 10) + ":" +
     ts.substring(10, 12) + ":" +
-    ts.substring(12, 14) + "." + 
+    ts.substring(12, 14) + "." +
     ts.substring(14) + "Z");
 
   return new Date(datestr);
@@ -76,21 +69,6 @@ export function getSecondsStr(date) {
   } catch (e) {
     return "";
   }
-}
-
-export function base16(hashBuffer) {
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function digestMessage(message, hashtype, prefix = null) {
-  const msgUint8 = typeof(message) === "string" ? new TextEncoder().encode(message) : message;
-  const hashBuffer = await crypto.subtle.digest(hashtype, msgUint8);
-  if (prefix === "") {
-    return base16(hashBuffer);
-  }
-  return (prefix || hashtype) + ":" + base16(hashBuffer);
-
 }
 
 export function decodeLatin1(buf) {
@@ -113,22 +91,6 @@ export function encodeLatin1(str) {
 //from http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript
 export function randomId() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
-
-export function makeHeaders(headers) {
-  try {
-    return new Headers(headers);
-  } catch (e) {
-    // try to sanitize the headers, if any errors
-    for (let key of Object.keys(headers)) {
-      const value = headers[key];
-      const newValue = value.replace(/[\r\n]+/g, ", ");
-      if (value != newValue) {
-        headers[key] = newValue;
-      }
-    }
-    return new Headers(headers);
-  }
 }
 
 export function parseSetCookie(setCookie, scheme) {
@@ -281,8 +243,3 @@ export class AccessDeniedError extends RangeError
 export class Canceled
 {
 }
-
-export function sleep(millis) {
-  return new Promise((resolve) => setTimeout(resolve, millis));
-}
-

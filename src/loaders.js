@@ -1,7 +1,7 @@
 import { RemoteWARCProxy } from "./remotewarcproxy.js";
 
 import { deleteDB, openDB } from "idb/with-async-ittr";
-import { Canceled, MAX_FULL_DOWNLOAD_SIZE, randomId, AuthNeededError } from "./utils.js";
+import { Canceled, randomId, AuthNeededError } from "./utils.js";
 import { detectFileType, getKnownFileExtension } from "./detectfiletype.js";
 
 if (!globalThis.self) {
