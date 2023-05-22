@@ -1,19 +1,4 @@
-import { ArchiveDB } from "./archivedb.js";
-import { RemoteSourceArchiveDB, RemotePrefixArchiveDB } from "./remotearchivedb.js";
-//import { WACZRemoteArchiveDB } from "./waczarchive";
-
-import { HARLoader } from "./harloader.js";
-//import { WBNLoader } from "./wbnloader";
-import { WARCLoader } from "./warcloader.js";
-import { CDXLoader, CDXFromWARCLoader } from "./cdxloader.js";
-
-import { SingleWACZLoader, SingleWACZFullImportLoader, JSONResponseMultiWACZLoader } from "./wacz/waczloader.js";
-import { MultiWACZ } from "./wacz/multiwacz.js";
-
-import { createLoader } from "./blockloaders.js";
-
 import { RemoteWARCProxy } from "./remotewarcproxy.js";
-import { LiveProxy } from "./liveproxy.js";
 
 import { deleteDB, openDB } from "idb/with-async-ittr";
 import { Canceled, MAX_FULL_DOWNLOAD_SIZE, randomId, AuthNeededError } from "./utils.js";
@@ -205,41 +190,8 @@ class CollectionLoader
     let store = null;
 
     switch (type) {
-    case "archive":
-      store = new ArchiveDB(config.dbname);
-      break;
-
-    case "remotesource":
-      sourceLoader = await createLoader({
-        url: config.loadUrl,
-        headers: config.headers,
-        size: config.size,
-        extra: config.extra
-      });
-      store = new RemoteSourceArchiveDB(config.dbname, sourceLoader, config.noCache);
-      break;
-
-    case "remoteprefix":
-      store = new RemotePrefixArchiveDB(config.dbname, config.remotePrefix, config.headers, config.noCache);
-      break;
-
-    case "wacz":
-    case "remotezip":
-    case "multiwacz":
-      sourceLoader = await createLoader({
-        url: config.loadUrl || config.sourceUrl,
-        headers: config.headers,
-        extra: config.extra
-      });
-      store = new MultiWACZ(config, sourceLoader, type === "multiwacz" ? "json" : "wacz");
-      break;
-
     case "remotewarcproxy":
       store = new RemoteWARCProxy(config);
-      break;
-
-    case "live":
-      store = new LiveProxy(config.extraConfig);
       break;
     }
 
