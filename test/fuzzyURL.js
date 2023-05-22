@@ -5,14 +5,6 @@ import { FuzzyMatcher } from "../src/fuzzymatcher.js";
 
 const fuzzy = new FuzzyMatcher();
 
-function fuzzyMatch(t, url, result) {
-  t.deepEqual(fuzzy.fuzzyCompareUrls(url, [result]), result);
-}
-
-function fuzzyMatchMany(t, url, results, expected) {
-  t.deepEqual(fuzzy.fuzzyCompareUrls(url, results), expected);
-}
-
 function fuzzyCanonWithArgs(t, url, expected) {
   const fuzzyCanonUrls = fuzzy.getFuzzyCanonsWithArgs(url);
   t.deepEqual(fuzzyCanonUrls, expected);
@@ -41,7 +33,7 @@ test("fuzzy canon args timestamp 2", fuzzyCanonWithArgs,
 
 
 test("simple url", fuzzyMatch,
-  "https://example.com/abc", 
+  "https://example.com/abc",
   "https://example.com/abc"
 );
 
@@ -57,7 +49,7 @@ test("allowed ext", fuzzyMatch,
 );
 
 test("other ext", fuzzyMatch,
-  "https://example.com/abc.asp?foo=bar&__123=xyz", 
+  "https://example.com/abc.asp?foo=bar&__123=xyz",
   "https://example.com/abc.asp?foo=bar&__123=xyz"
 );
 
